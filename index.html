@@ -20,15 +20,15 @@
 	</canvas>
 	<div>Data location</div>
 	<div>
-		<input type='radio' name='dataLocation' value='local'>Load data from local data file
+		<input type='radio' name='dataLocation' value='local' checked>Load data from local data file
 		<input type="file" name="file" id="file">
 	</div>
 	<div>
 		<input type='radio' name='dataLocation' value='trussOnly'>Load trusses ONLY from server</div>
 	<div>
-		<input type='radio' name='dataLocation' value='trussAndOther' checked>Load trusses and non-trusses from server</div>
+		<input type='radio' name='dataLocation' value='trussAndOther' >Load trusses and non-trusses from server</div>
 	<div>Sketch Limit
-		<input type="number" name="limit" id="limit" value='10'>
+		<input type="number" name="limit" id="limit" value='1'>
 	</div>
 	<button id='start'>Start</button>
 	<div id='progress'>Progress will show here.</div>
@@ -64,10 +64,12 @@
 
 			//var canvas = document.getElementById("sketchCanvas");
 			var i=0;
-			
-			 if (sketch != null && sketch.points != null) {
-				DrawSketch.drawPoints( sketch.points);
+			for(var j=0;j<sketch.strokes.length;j++){
+				if (sketch != null && sketch.strokes[j] != null) {
+				DrawSketch.drawPoints( sketch.strokes[j].points);
 			 }
+			}
+			 
 			sketch = SketchIo.simplify(sketch);
 			var output = { 'containsTruss': false, 'trussStrokeIds': [] };
 			var strokeIds = [];
@@ -149,7 +151,7 @@
 				contentType: "application/json",
 				success: function (res) {
 					var sketch = res[0];
-					sketch.points = arrayToObj(sketch.points);
+					//sketch.points = arrayToObj(sketch.points);
 					document.getElementById('progress').textContent = 'Checking sketch  ' + counter + ' of ' + limit;
 					compareAndLogStats(sketch, checkSketchForTruss(sketch));
 					getSketch();
@@ -177,15 +179,17 @@
 			reader.onload = function (progressEvent) {
 				// Read line by line
 				var lines = this.result.split('\n');
-				if (limit > lines.length) { limit = lines.length; } // In case there are fewer lines than the user selected limit.
+				var l=JSON.parse(lines);
+				if (limit > l.length) { limit = l.length; } // In case there are fewer lines than the user selected limit.
 				for (var line = 0; line < limit; line++) {
-					if (lines[line] == '') { continue; }
-					var sketch = JSON.parse(lines[line]);
+					
+					if (l[line] == '') { continue; }
+					var sketch = l[line];
 					delete sketch.shapes;
 					delete sketch.substrokes;
-					sketch.points = arrayToObj(sketch.points);
+					//sketch.points = arrayToObj(sketch.points);
 					console.log('Checking sketch ' + (line + 1) + ' of ' + limit);
-					compareAndLogStats(JSON.parse(lines[line]), checkSketchForTruss(sketch)); // Reparse as the sketch param in case they change anything.
+					compareAndLogStats(l[line], checkSketchForTruss(sketch)); // Reparse as the sketch param in case they change anything.
 				}
 				displayStats();
 				saveCSV();
@@ -228,8 +232,8 @@
 		// All or nothing accuracy for strokeIds, so just track if they match entirely or not.
 		var strokeIdMatches = 0;
 		function compareAndLogStats(sketch, ans) {
-			sketch.shapes = arrayToObj(sketch.shapes);
-			sketch.substrokes = arrayToObj(sketch.substrokes);
+			//sketch.shapes = arrayToObj(sketch.shapes);
+			//sketch.substrokes = arrayToObj(sketch.substrokes);
 			sketch.trussStrokeIds = new Set();
 
 			var row = [];
@@ -239,13 +243,19 @@
 
 			// This finds the answer data for the original sketch. Could probably be factored out of this function, but for the homework starter files I'm tired and this works fine anyway.
 			sketch.containsTruss = false;
-			Object.keys(sketch.shapes).forEach(function (key) {
-				var shape = sketch.shapes[key];
-				if (shape.interpretation === 'truss') {
-					sketch.containsTruss = true;
-					findParentStrokes(sketch, key);
+			for(var i=0;i<sketch.length;i++){
+				if(sketch[i].interpretation === 'truss'){
+					sketch[i].containsTruss = true;
+					findParentStrokes(sketch[i], key);
 				}
-			});
+			}
+			// Object.keys(sketch.shapes).forEach(function (key) {
+			// 	var shape = sketch.shapes[key];
+			// 	if (shape.interpretation === 'truss') {
+			// 		sketch.containsTruss = true;
+			// 		findParentStrokes(sketch, key);
+			// 	}
+			// });
 
 			row.push(sketch.containsTruss);
 			row.push('"' + JSON.stringify([...new Set(ans.trussStrokeIds)]).replace(/"/g, '') + '"'); // This will make the field surrounded by double quotes but have no double quotes so it all appears in 1 cell in the CSV.
