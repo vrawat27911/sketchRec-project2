@@ -1,17 +1,19 @@
+var numberOfCorners;
+var isPolyline;
 var Features = {
-
     evaluateFeatures: function (sketch) {
 
         // get corners
         // ndde
         // dcr
         //triangle detection
-
-        var corners = this.displayCornerFindingShortStraw(sketch);
-        var corners2 = this.displayCornerFindingIStraw(sketch);
-        console.log(corners);
-        console.log(corners2);
-        DrawSketch.drawPoints(corners2, "#0000ff");
+        var corners = this.displayCornerFindingIStraw(sketch);
+        var arr =[];
+        arr.push(isPolyline);
+        arr.push(numberOfCorners);
+        //arr.push(this.interpretation);
+        DrawSketch.drawPoints(corners, "#0000ff");
+        return arr;
     },
 
 
@@ -43,7 +45,7 @@ var Features = {
         var corners = [];
         var strokeStartPoints = [];
         var strokeEndPoints = [];
-        var isPolyline = true;
+        isPolyline = true;
         for (var i = 0; i < resampledSketch.strokes.length; i++) {
             if (resampledSketch.strokes[i].points.length > 2) {
                 d = Math.sqrt(Math.pow(resampledSketch.strokes[i].points[1].x - resampledSketch.strokes[i].points[0].x, 2) + Math.pow(resampledSketch.strokes[i].points[1].y - resampledSketch.strokes[i].points[0].y, 2));
@@ -90,6 +92,7 @@ var Features = {
                     corners.splice(j--, 1);
             }
         }
+        numberOfCorners = corners.length;
         return corners;
     },
     triangle: function (sketch) {
