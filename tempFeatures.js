@@ -27,6 +27,7 @@ function angleBetweenLines(dx, dy, dxPrev, dyPrev){
         var numer = dx * dyPrev - dxPrev * dy;
         var denom = dx * dxPrev + dy * dyPrev;
         var theta = Math.atan(numer / denom);
+        // console.log("The angle between is: " + theta);
         return theta;
 }
 
@@ -209,4 +210,60 @@ function DCR(sketch) {
     var DCR = max / averageChange;
     // console.log("Direction change ratio is " + DCR);
     return DCR;
+}
+
+/* Normalized Distance Between Direction Extremes */
+function single(sketch, points) {
+    var maxDirChange = Number.MIN_VALUE,
+        minDirChange = Number.MAX_VALUE;
+    var maxID = 0,
+        minID = 0;
+    for (var i = 1; i < points.length; i++) {
+        var id1 = points[i - 1];
+        var id2 = points[i];
+        var temp = (id1.y - id2.y) / (id1.x - id2.x);
+        if (temp > maxDirChange) {
+            maxDirChange = temp;
+            maxID = i;
+        }
+        if (temp < minDirChange) {
+            minDirChange = temp;
+            minID = i;
+        }
+    }
+    var numer = distance(points[maxID] - points[minID]);
+    return numer;
+}
+
+// function minDir(sketch, points) {
+//     var minDirChange = Number.MAX_VALUE;
+//     var minID = 0;
+//     for (var i = 1; i < points.length; i++) {
+//         var id1 = points[i - 1];
+//         var id2 = points[i];
+//         var temp = (id1.y - id2.y) / (id1.x - id2.x);
+//         if (temp < miniDirChange) {
+//             miniDirChange = temp;
+//             minID = i;
+//         }
+//     }
+//     return minDirChange;
+// }
+
+// function strokeLenBetweenExtreme(sketch) {
+//     var strokes = sketch.strokes;
+//     var maxDir = Math.max(directionChange(sketch, strokes.points));
+//     var minDir = Math.min(directionChange(sketch, strokes.points));
+
+// }
+
+function NDDE(sketch) {
+    var strokes = sketch.strokes;
+    var ndde = [];
+    for (var i = 0; i < strokes.length; i++) {
+        var numer = single(sketch, strokes[i].points);
+        var denom = strokeLen(sketch)
+        ndde[i] = numer / denom;
+    }
+    return ndde;
 }
