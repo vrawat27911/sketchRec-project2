@@ -12,11 +12,15 @@
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
 	<script src="sketchio.js"></script>
 	<script src="draw.js"></script>
+<<<<<<< HEAD
 	<script src="features.js"></script>
 	<script src="sketchRecTools.js"></script>
 	<script src="shortStraw.js"></script>
 	<script src="istraw.js"></script>
 	
+=======
+	<script src="tempFeatures.js"></script>
+>>>>>>> c406eb2... Fix feature
 </head>
 
 <body>
@@ -157,7 +161,7 @@
 				contentType: "application/json",
 				success: function (res) {
 					var sketch = res[0];
-					//sketch.points = arrayToObj(sketch.points);
+					sketch.pointsObj = arrayToObj(sketch.strokes.points);
 					document.getElementById('progress').textContent = 'Checking sketch  ' + counter + ' of ' + limit;
 					compareAndLogStats(sketch, checkSketchForTruss(sketch));
 					getSketch();
@@ -191,9 +195,12 @@
 					
 					if (l[line] == '') { continue; }
 					var sketch = l[line];
-					//delete sketch.shapes;
-					//delete sketch.substrokes;
-					//sketch.points = arrayToObj(sketch.points);
+					delete sketch.shapes;
+					delete sketch.substrokes;
+					sketch.pointsObj = [];
+					for (var i = 0; i < sketch.strokes.length; i++) {
+						sketch.pointsObj.push(arrayToObj(sketch.strokes[i]));
+					}
 					console.log('Checking sketch ' + (line + 1) + ' of ' + limit);
 					compareAndLogStats(l[line], checkSketchForTruss(sketch)); // Reparse as the sketch param in case they change anything.
 				}

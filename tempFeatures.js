@@ -27,6 +27,7 @@ function angleBetweenLines(dx, dy, dxPrev, dyPrev){
         var numer = dx * dyPrev - dxPrev * dy;
         var denom = dx * dxPrev + dy * dyPrev;
         var theta = Math.atan(numer / denom);
+        // console.log("The angle between is: " + theta);
         return theta;
 }
 
