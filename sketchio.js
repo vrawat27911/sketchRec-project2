@@ -19,19 +19,28 @@ var SketchIo = {
     }
 
     // error-checking #1: check if input has shapes
-    if (input.shapes === null || input.shapes === undefined || input.shapes.length === 0) {
-      if (this.debugFlag) console.log("ERROR #1: sketch has no shapes");
-      return null;
-    }
+    // if (input.shapes === null || input.shapes === undefined || input.shapes.length === 0) {
+    //   if (this.debugFlag) console.log("ERROR #1: sketch has no shapes");
+    //   return null;
+    //}
 
     // error-checking #2: check if interpretation property exists
-    if (!(input.shapes[0]).hasOwnProperty("interpretation")) {
-      if (this.debugFlag) console.log("ERROR #2: sketch does not have interpretation property");
-      return null;
-    }
+    // if (!(input.shapes[0]).hasOwnProperty("interpretation")) {
+    //   if (this.debugFlag) console.log("ERROR #2: sketch does not have interpretation property");
+    //   return null;
+    //}
 
     // get the interpretation
-    var interpretation = input.shapes[0]["interpretation"];
+   //var interpretation = input.shapes[0]["interpretation"];
+
+   input.containsTruss = false;
+
+    Object.keys(input.shapes).forEach(function(key) {
+      var shape = input.shapes[key];
+      if (shape.interpretation === 'truss') {
+        input.containsTruss = true;
+      }
+    });
 
     // error-checking #3: check if strokes property exists
     if (!input.hasOwnProperty("strokes")) {
@@ -56,7 +65,9 @@ var SketchIo = {
     }*/
 
     // convert the standard sketch object's structure to compact format
-    var sketch = this.compact(input);
+    var sketch = input; // this.compact(input);
+
+    sketch.interpretation  = input.containsTruss == true ? 'truss' : 'others';
 
     // error-check #18: check if sketch has any strokes after compacting
     if (sketch === null) {
@@ -99,7 +110,7 @@ var SketchIo = {
    * @param {(standard) Sketch} input - The sketch object in standard format.
    * @return {(compact) Sketch} The sketch object in compact format.
    */
-  compact: function(input) {
+  compact: function(input) { 
     // get the old strokes and initialize the new strokes
     var oldStrokes = input.strokes;
     var newStrokes = [];

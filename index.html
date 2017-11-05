@@ -16,13 +16,13 @@
 	<script src="sketchRecTools.js"></script>
 	<script src="shortStraw.js"></script>
 	<script src="istraw.js"></script>
-	
+	<script src="jsregression.js"></script>
 </head>
 
 <body>
-	<canvas id="sketchCanvas" width="900" height="900">
+	<!-- <canvas id="sketchCanvas" width="900" height="900">
 
-	</canvas>
+	</canvas> -->
 	<div>Data location</div>
 	<div>
 		<input type='radio' name='dataLocation' value='local' checked>Load data from local data file
@@ -69,16 +69,16 @@
 
 			//var canvas = document.getElementById("sketchCanvas");
 			var i=0;
-			for(var j=0;j<sketch.strokes.length;j++){
-				if (sketch != null && sketch.strokes[j] != null) {
-				DrawSketch.drawPoints( sketch.strokes[j].points,"#ff2626");
-			 }
-			}
-			 
+			// for(var j=0;j<sketch.strokes.length;j++){
+			// 	if (sketch != null && sketch.strokes[j] != null) {
+			// 	DrawSketch.drawPoints( sketch.strokes[j].points,"#ff2626");
+			//  }
+			// }
+
 			sketch = SketchIo.simplify(sketch);
 			var result = Features.evaluateFeatures(sketch);
 			var output = { 'containsTruss': false, 'trussStrokeIds': [] };
-			var strokeIds = [];
+			var strokeIds = sketch.strokeIds;
 			// DO SOMETHING HERE TO FIND IF THERE IS A TRUSS AND WHAT STROKE IDS IT IS MADE FROM
 
 			// Instead of an array, you can use a Set, but make sure to return an array. Something along these lines should work.
@@ -142,8 +142,33 @@
 			a.click();*/
 		}
 
+		var sketches = [];
 		function getSketch() {
-			if (counter == sketchIds.length || counter == limit) { // Reached the last sketch.
+			if (counter == sketchIds.length || counter == limit) 
+			{ // Reached the last sketch.
+				var classifier = new jsregression.MultiClassLogistic({ alpha: 0.001, iterations: 1000, lambda: 0.0});
+
+				var trainingData = features_arr;
+				var testingData = features_arr;
+ 				
+ 				//var actual = ['others', 'truss'];
+				var model = classifier.fit(trainingData);
+				//classifier.initializeModel();
+				var correct = 0;
+				var accuracy;
+ 
+				//console.log(model);
+ 
+				for(var i=0; i < testingData.length; i++)
+				{
+   					var predicted = classifier.transform(testingData[i]);
+  					//console.log("actual: " + actual[i] + " predicted: " + predicted);
+
+  					output.containsTruss = predicted === "truss" ? true : false;
+  					//featureCalc.trussStrokeIds;
+  					compareAndLogStats(sketches[i], output); // Reparse as the sketch param in case they change anything.
+				}
+
 				displayStats();
 				saveCSV();
 				return;
@@ -159,7 +184,9 @@
 					var sketch = res[0];
 					//sketch.points = arrayToObj(sketch.points);
 					document.getElementById('progress').textContent = 'Checking sketch  ' + counter + ' of ' + limit;
-					compareAndLogStats(sketch, checkSketchForTruss(sketch));
+					output = checkSketchForTruss(sketch);
+					//compareAndLogStats(sketch, checkSketchForTruss(sketch));
+					sketches.push(sketch);
 					getSketch();
 				}
 			});
@@ -169,6 +196,10 @@
 		var sketchIds;
 		var counter = 0;
 		function getSketchesFromServer(interpretation) {
+
+			features_arr = [[]];
+			feature_count = 0;
+
 			$.ajax({
 				url: "http://srl-prod1.cs.tamu.edu:7750/getIds?domain=SketchRec2017HW2&interpretation=" + interpretation, success: function (result) {
 					sketchIds = result;
@@ -185,18 +216,49 @@
 			reader.onload = function (progressEvent) {
 				// Read line by line
 				var lines = this.result.split('\n');
+				//var sketch = []
 				var l=JSON.parse(lines);
+				features_arr = [[]];
+				feature_count = 0;
+
 				if (limit > l.length) { limit = l.length; } // In case there are fewer lines than the user selected limit.
 				for (var line = 0; line < limit; line++) {
 					
 					if (l[line] == '') { continue; }
-					var sketch = l[line];
+					// var sketch = l[line];
 					//delete sketch.shapes;
 					//delete sketch.substrokes;
 					//sketch.points = arrayToObj(sketch.points);
-					console.log('Checking sketch ' + (line + 1) + ' of ' + limit);
-					compareAndLogStats(l[line], checkSketchForTruss(sketch)); // Reparse as the sketch param in case they change anything.
+					//console.log('Checking sketch ' + (line + 1) + ' of ' + limit);
+					//get stroke ids n calculate features.
+					output = checkSketchForTruss(l[line]);
 				}
+
+				var classifier = new jsregression.MultiClassLogistic({ alpha: 0.001, iterations: 1000, lambda: 0.0});
+
+				var trainingData = features_arr;
+				var testingData = features_arr;
+ 				
+ 				//var actual = ['others', 'truss'];
+				var model = classifier.fit(trainingData);
+				//classifier.initializeModel();
+				var correct = 0;
+				var accuracy;
+ 
+				//console.log(model);
+ 
+				for(var i=0; i < testingData.length; i++)
+				{
+   					var predicted = classifier.transform(testingData[i]);
+  					//console.log("actual: " + actual[i] + " predicted: " + predicted);
+
+  					output.containsTruss = predicted === "truss" ? true : false;
+  					//featureCalc.trussStrokeIds;
+  					compareAndLogStats(l[i], output); // Reparse as the sketch param in case they change anything.
+				}
+
+				console.log(features_arr);
+
 				displayStats();
 				saveCSV();
 			};
@@ -248,13 +310,13 @@
 			row.push(ans.containsTruss);
 
 			// This finds the answer data for the original sketch. Could probably be factored out of this function, but for the homework starter files I'm tired and this works fine anyway.
-			sketch.containsTruss = false;
-			for(var i=0;i<sketch.strokes.length;i++){
-				if(sketch.strokes[i].interpretation === 'truss'){
-					sketch[i].containsTruss = true;
-					findParentStrokes(sketch[i], key);
-				}
-			}
+			// sketch.containsTruss = false;
+			// for(var i=0;i<sketch.strokes.length;i++){
+			// 	if(sketch.strokes[i].interpretation === 'truss'){
+			// 		sketch[i].containsTruss = true;
+			// 		findParentStrokes(sketch[i], key);
+			// 	}
+			// }
 			// Object.keys(sketch.shapes).forEach(function (key) {
 			// 	var shape = sketch.shapes[key];
 			// 	if (shape.interpretation === 'truss') {

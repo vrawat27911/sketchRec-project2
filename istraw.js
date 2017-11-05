@@ -45,12 +45,12 @@ var IStraw = {
     
         // add the 0-index to the corner indices (line 2)
         corners.push(0);
-    
-        // handle singleton-stroke case
-        if (points.length === 1) { return corners; }
-    
+
         // set the window length (line 3)
         var W = 3;
+    
+        // handle singleton-stroke case
+        if (points.length === 1 || points.length < W+3) { return corners; }
     
         // zero-fill the array of straw distances to the size of points
         var straws = new Array(points.length - 1).fill(0);
@@ -586,5 +586,5 @@ var IStraw = {
         return output;
       },
     
-      isDebug: true,
+      isDebug: false,
     };
