@@ -12,6 +12,11 @@
 	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
 	<script src="sketchio.js"></script>
 	<script src="draw.js"></script>
+	<script src="features.js"></script>
+	<script src="sketchRecTools.js"></script>
+	<script src="shortStraw.js"></script>
+	<script src="istraw.js"></script>
+	
 </head>
 
 <body>
@@ -66,11 +71,12 @@
 			var i=0;
 			for(var j=0;j<sketch.strokes.length;j++){
 				if (sketch != null && sketch.strokes[j] != null) {
-				DrawSketch.drawPoints( sketch.strokes[j].points);
+				DrawSketch.drawPoints( sketch.strokes[j].points,"#ff2626");
 			 }
 			}
 			 
 			sketch = SketchIo.simplify(sketch);
+			var result = Features.evaluateFeatures(sketch);
 			var output = { 'containsTruss': false, 'trussStrokeIds': [] };
 			var strokeIds = [];
 			// DO SOMETHING HERE TO FIND IF THERE IS A TRUSS AND WHAT STROKE IDS IT IS MADE FROM
@@ -185,8 +191,8 @@
 					
 					if (l[line] == '') { continue; }
 					var sketch = l[line];
-					delete sketch.shapes;
-					delete sketch.substrokes;
+					//delete sketch.shapes;
+					//delete sketch.substrokes;
 					//sketch.points = arrayToObj(sketch.points);
 					console.log('Checking sketch ' + (line + 1) + ' of ' + limit);
 					compareAndLogStats(l[line], checkSketchForTruss(sketch)); // Reparse as the sketch param in case they change anything.
@@ -243,8 +249,8 @@
 
 			// This finds the answer data for the original sketch. Could probably be factored out of this function, but for the homework starter files I'm tired and this works fine anyway.
 			sketch.containsTruss = false;
-			for(var i=0;i<sketch.length;i++){
-				if(sketch[i].interpretation === 'truss'){
+			for(var i=0;i<sketch.strokes.length;i++){
+				if(sketch.strokes[i].interpretation === 'truss'){
 					sketch[i].containsTruss = true;
 					findParentStrokes(sketch[i], key);
 				}
