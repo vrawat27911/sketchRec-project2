@@ -1,7 +1,14 @@
 var numberOfCorners;
+var rawCorners = [];
 var isPolyline;
-var features_arr =[[]];
+var numberOfTriangles;
+var lines = [];
+var allPoints = [];
+var cornerIndices = [];
+var closenessThreshold;
+var features_arr = [[]];
 var feature_count = 0;
+
 var Features = {
     evaluateFeatures: function (sketch) {
 
@@ -9,6 +16,8 @@ var Features = {
         // ndde
         // dcr
         //triangle detection
+        //rubine features
+
         var corners = this.displayCornerFindingIStraw(sketch);
         var bbDiagLen = this.bbDiagLen(sketch);
         var rotation = this.rotChange(sketch);
@@ -22,15 +31,155 @@ var Features = {
         var dcr = this.DCR(sketch);
         var ndde = this.NDDE(sketch);
 
-        // arr.push(isPolyline);
+
+        //polygon features
+        this.initialize();
+        var corners = this.displayCornerFindingIStraw(sketch);
+        var arr = [];
+        arr.push(isPolyline);
+        arr.push(numberOfCorners);
+        this.mapCornerConnections(corners, sketch);
+        //arr.push(this.interpretation);
+        // DrawSketch.drawPoints(corners, "#0000ff");
+        console.log(numberOfCorners);
+        console.log(isPolyline);
+        console.log(lines);
+        lines = this.removeDuplicates(lines);
+        //closedShapePoints = [];
+        var result = this.checkDegree(lines);
+        var graphEdges = result[0];
+        var adjMat = result[1];
+        arr.push(graphEdges.length);
+        numTriangles = this.detectTriangles(adjMat);
+        console.log(numberOfTriangles);
+
+
 
         features_arr[feature_count] = [];
-        features_arr[feature_count++] = [isPolyline, numberOfCorners, bbDiagLen, absRotation, /*smoothness,*/ strokeLen,/* curviness,distanceBetweenStartAndEnd, openness, dcr, */ ndde, sketch.interpretation];
-        //arr.push(this.interpretation);
-        //DrawSketch.drawPoints(corners, "#0000ff");
+        features_arr[feature_count++] = [numberOfTriangles,graphEdges.length,isPolyline, numberOfCorners, bbDiagLen, absRotation, /*smoothness,*/ strokeLen,/* curviness,distanceBetweenStartAndEnd, openness, dcr, */ ndde, sketch.interpretation];
         return features_arr;
     },
+    initialize: function () {
+        numberOfCorners = 0;
+        rawCorners = [];
+        isPolyline = true;
+        numberOfTriangles = 0;
+        lines = [];
+        allPoints = [];
+        cornerIndices = [];
+        closenessThreshold = 0;
+    },
+    removeDuplicates: function (lines) {
+        for (var i = 0; i < lines.length; i++) {
+            if (this.distance(lines[i].start, lines[i].end) < closenessThreshold) {
+                lines.splice(i, 1);
+                i--;
+            }
+            if (i < 0)
+                continue;
+            for (var j = i + 1; j < lines.length; j++) {
+                if ((this.distance(lines[i].start, lines[j].start) == 0) && (this.distance(lines[i].end, lines[j].end) == 0)) {
+                    lines.splice(j, 1);
+                    j--;
+                }
+            }
+        }
+        return lines;
+    },
 
+    detectTriangles: function (adjMat) {
+        var c = 0;
+        for (var i = 0; i < adjMat.length; i = i + 2) {
+            for (var j = 0; j < adjMat[i].length; j++) {
+                for (var k = 0; k < adjMat[i + 1].length; k++) {
+                    if (this.distance(adjMat[i + 1][k], adjMat[i][j]) <= closenessThreshold) {
+                        c++;
+                    }
+                }
+            }
+        }
+        return c;
+    },
+    isNotPointInList: function (point, list) {
+        for (var i = 0; i < list.length; i++) {
+            if (this.distance(point, list[i]) < closenessThreshold)
+                return false;
+            else
+                return true;
+        }
+    },
+    checkDegree: function (lines) {
+        var graphEdges = [];
+        var adjMat = [];
+        for (var i = 0; i < lines.length; i++) {
+            var p1 = lines[i].start;
+            var p2 = lines[i].end;
+            var d1 = 0, d2 = 0;
+            var adjP1 = [];
+            var adjP2 = [];
+            for (var j = 0; j < lines.length; j++) {
+                if (j == i)
+                    continue;
+                if (this.distance(p1, lines[j].start) < closenessThreshold) {
+                    d1++;
+                    adjP1.push(lines[j].end);
+                }
+                else if (this.distance(p1, lines[j].end) < closenessThreshold) {
+                    d1++;
+                    adjP1.push(lines[j].start);
+                }
+                if (this.distance(p2, lines[j].start) < closenessThreshold) {
+                    d2++;
+                    adjP2.push(lines[j].end);
+                }
+                else if (this.distance(p2, lines[j].end) < closenessThreshold) {
+                    d2++;
+                    adjP2.push(lines[j].start);
+                }
+            }
+            if (d1 >= 1 && d2 >= 1) {
+                graphEdges.push(lines[i]);
+                adjMat.push(adjP1);
+                adjMat.push(adjP2);
+            }
+        }
+        var returnObj = [];
+        returnObj.push(graphEdges); returnObj.push(adjMat);
+        return returnObj;
+    },
+
+    distance: function (p1, p2) {
+        return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+    },
+    mapCornerConnections: function (corners, sketch) {
+        for (var i = 0; i < allPoints.length; i++) {
+            var prev = null;
+            var next = null;
+            var temp = null;
+            for (var j = 0; j < allPoints[i].length; j++) {
+                if (this.search(allPoints[i][j])) {
+                    var pt = allPoints[i][j];
+                    if (prev == null)
+                        prev = pt;
+                    else {
+                        next = pt;
+                        var obj = { start: prev, end: next };
+                        lines.push(obj);
+                        prev = next;
+                    }
+                }
+            }
+        }
+
+    },
+
+    search: function (point) {
+        for (var i = 0; i < rawCorners.length; i++) {
+            if (rawCorners[i].x == point.x && rawCorners[i].y == point.y) {
+                return true;
+            }
+        }
+    },
 
     displayCornerFindingShortStraw: function (sketch) {
         // get the resampled sketch and its corner indices
@@ -54,6 +203,7 @@ var Features = {
     displayCornerFindingIStraw: function (sketch) {
         // get the resampled sketch and its corner indices
         var resampledSketch = SketchRecTools.resampleByDistance(sketch);
+        closenessThreshold = 3 * sampleSpace;//defined in sketch rec tools
         var sketchCornerIndices = IStraw.run(resampledSketch);
         var d;
         // gather the corners from their indices
@@ -66,6 +216,7 @@ var Features = {
                 d = Math.sqrt(Math.pow(resampledSketch.strokes[i].points[1].x - resampledSketch.strokes[i].points[0].x, 2) + Math.pow(resampledSketch.strokes[i].points[1].y - resampledSketch.strokes[i].points[0].y, 2));
             }
             var resampledPoints = resampledSketch.strokes[i].points;
+            allPoints.push(resampledPoints);
             var strokeCornerIndices = sketchCornerIndices[i];
             isPolyline = isPolyline && this.checkForStraightLine(resampledPoints, strokeCornerIndices);
             for (var j = 0; j < strokeCornerIndices.length; j++) {
@@ -77,6 +228,7 @@ var Features = {
             }
         }
         //console.log(isPolyline);
+        rawCorners = $.extend(true, [], corners);
         return this.printDist(corners);
         //return corners;
         //previewSketch(sketch, "gray");
@@ -86,14 +238,20 @@ var Features = {
     checkForStraightLine: function (points, indices) {
         var totalLen = 0;
         var isStr = true;
-        for (var j = 0; j < indices.length-1; j++) {
+        for (var j = 0; j < indices.length - 1; j++) {
             totalLen = 0;
+            // cornerIndices.push(allPoints.length);
             for (var i = indices[j]; i < indices[j + 1] - 1; i++) {
+                //allPoints.push(points[i]);
                 totalLen += Math.sqrt(Math.pow(points[i].x - points[i + 1].x, 2) + Math.pow(points[i].y - points[i + 1].y, 2));
             }
             var dist = Math.sqrt(Math.pow(points[indices[j]].x - points[indices[j + 1]].x, 2) + Math.pow(points[indices[j]].y - points[i + 1].y, 2));
             //console.log(dist / totalLen);
             isStr = isStr && (dist / totalLen >= 0.95);
+            // if (isStr) {
+            //     var obj = { startPoint: indices[j], endPoint: indices[j + 1] };
+            //     lines.push(obj);
+            // }
         }
         return isStr;
     },
@@ -110,28 +268,24 @@ var Features = {
         numberOfCorners = corners.length;
         return corners;
     },
-    triangle: function (sketch) {
-
-    },
 
     ///Lingje
     // calculate the distance between tow points
-    distance: function(p1, p2)
-    {
-        var a = p1.x - p2.x;
-        var b = p1.y - p2.y;
-        var c = Math.sqrt(a * a + b * b);
-        // console.log("Distance between is: " + c);
-        return c;
-    },
+    // distance: function(p1, p2)
+    // {
+    //     var a = p1.x - p2.x;
+    //     var b = p1.y - p2.y;
+    //     var c = Math.sqrt(a * a + b * b);
+    //     // console.log("Distance between is: " + c);
+    //     return c;
+    // },
 
     // rotation change helper function
-    rotChangeHelper: function(sketch, i, j) 
-    {
-        var xDelta = sketch.strokes[i].points[j+1].x - sketch.strokes[i].points[j].x;
-        var yDelta = sketch.strokes[i].points[j+1].y - sketch.strokes[i].points[j].y;
-        var xDeltaPrev = sketch.strokes[i].points[j].x - sketch.strokes[i].points[j-1].x;
-        var yDeltaPrev = sketch.strokes[i].points[j].y - sketch.strokes[i].points[j-1].y;
+    rotChangeHelper: function (sketch, i, j) {
+        var xDelta = sketch.strokes[i].points[j + 1].x - sketch.strokes[i].points[j].x;
+        var yDelta = sketch.strokes[i].points[j + 1].y - sketch.strokes[i].points[j].y;
+        var xDeltaPrev = sketch.strokes[i].points[j].x - sketch.strokes[i].points[j - 1].x;
+        var yDeltaPrev = sketch.strokes[i].points[j].y - sketch.strokes[i].points[j - 1].y;
 
         var subSum = this.angleBetweenLines(xDelta, yDelta, xDeltaPrev, yDeltaPrev);
 
@@ -139,7 +293,7 @@ var Features = {
     },
 
     // angle between lines
-    angleBetweenLines : function(dx, dy, dxPrev, dyPrev){
+    angleBetweenLines: function (dx, dy, dxPrev, dyPrev) {
         var numer = dx * dyPrev - dxPrev * dy;
         var denom = dx * dxPrev + dy * dyPrev;
         var theta = Math.atan(numer / denom);
@@ -170,17 +324,14 @@ var Features = {
     // },
 
     /* Rubine feature: Bounding Box Diagonal Length */
-    maxNmin : function(sketch)
-    {
+    maxNmin: function (sketch) {
         var xMax = Number.MIN_VALUE;
         var yMax = Number.MIN_VALUE;
         var xMin = Number.MAX_VALUE;
         var yMin = Number.MAX_VALUE;
-        
-        for (var i = 0; i < sketch.strokes.length; i++)
-        {
-            for (var j = 0; j < sketch.strokes[i].points.length; j++)
-            {
+
+        for (var i = 0; i < sketch.strokes.length; i++) {
+            for (var j = 0; j < sketch.strokes[i].points.length; j++) {
                 point = sketch.strokes[i].points[j];
 
                 xMax = Math.max(xMax, point.x);
@@ -190,11 +341,10 @@ var Features = {
             }
         }
 
-        return [{x:xMax,y:yMax},{x:xMin,y:yMin}];
+        return [{ x: xMax, y: yMax }, { x: xMin, y: yMin }];
     },
 
-    bbDiagLen: function(sketch)
-    {
+    bbDiagLen: function (sketch) {
         var points = this.maxNmin(sketch);
         pMax = points[0];
         pMin = points[1];
@@ -202,14 +352,11 @@ var Features = {
     },
 
     /* Rubine feature: Rotation Change */
-    rotChange: function(sketch)
-    {
+    rotChange: function (sketch) {
         var angleSum = 0;
 
-        for (var i = 0; i < sketch.strokes.length; i++)
-        {   
-            for (var j = 1; j < sketch.strokes[i].points.length - 2; j++)
-            {
+        for (var i = 0; i < sketch.strokes.length; i++) {
+            for (var j = 1; j < sketch.strokes[i].points.length - 2; j++) {
                 var subSum = this.rotChangeHelper(sketch, i, j);
                 angleSum += isNaN(subSum) ? 0 : subSum;
             }
@@ -221,32 +368,27 @@ var Features = {
     },
 
     /* Rubine feature: Absolute Rotation Change */
-    absRotChange: function(sketch)
-    {
+    absRotChange: function (sketch) {
         var absSum = 0;
-        
-        for (var i = 0; i < sketch.strokes.length; i++)
-        {
-            for (var j = 1; j < sketch.strokes[i].points.length - 2; j++)
-            {
+
+        for (var i = 0; i < sketch.strokes.length; i++) {
+            for (var j = 1; j < sketch.strokes[i].points.length - 2; j++) {
                 var absRot = this.rotChangeHelper(sketch, i, j);
                 absSum += isNaN(absRot) ? 0 : Math.abs(absRot);
             }
         }
-        
+
         return absSum;
     },
 
     /*Feature 8 -- Stroke Length */
-    perStrokeLen: function(sketch, points) 
-    {
+    perStrokeLen: function (sketch, points) {
         var sum = 0;
 
-        for (var i = 1; i < points.length; i++) 
-        {
+        for (var i = 1; i < points.length; i++) {
             var prev_point = points[i - 1];
             var curr_point = points[i];
-            
+
             var dis = this.distance(prev_point, curr_point);
             sum += dis;
         }
@@ -254,13 +396,11 @@ var Features = {
         return sum;
     },
 
-    strokeLen: function(sketch) 
-    {
+    strokeLen: function (sketch) {
         var strokes = sketch.strokes;
         var sumStrokeLen = 0;
 
-        for (var i = 0; i < strokes.length; i++) 
-        {
+        for (var i = 0; i < strokes.length; i++) {
             var strokeLen = this.perStrokeLen(sketch, strokes[i].points);
             sumStrokeLen += strokeLen;
         }
@@ -269,26 +409,22 @@ var Features = {
     },
 
     /* Rubine feature: Distance Between Start and End Points */
-    distanceBetweenStartAndEnd: function(sketch) 
-    {
+    distanceBetweenStartAndEnd: function (sketch) {
         var endstrokeIndex = sketch.strokes.length - 1;
         var endpointIndex = sketch.strokes[endstrokeIndex].points.length - 1;
         var P0 = sketch.strokes[0].points[0];
         var Pn = sketch.strokes[endstrokeIndex].points[endpointIndex];
         var dis = this.distance(P0, Pn);
-        
+
         return dis;
     },
 
     /* Rubine feature: Smoothness */
-    smoothness: function(sketch)
-    {
+    smoothness: function (sketch) {
         var squareSum = 0;
 
-        for (var i = 0; i < sketch.strokes.length; i++)
-        {
-            for (var j = 1; j < sketch.strokes[i].points.length - 2; j++)
-            {
+        for (var i = 0; i < sketch.strokes.length; i++) {
+            for (var j = 1; j < sketch.strokes[i].points.length - 2; j++) {
                 var sqRot = Math.pow(this.rotChangeHelper(sketch, i, j), 2);
                 squareSum += isNaN(sqRot) ? 0 : Math.abs(sqRot);
             }
@@ -298,14 +434,12 @@ var Features = {
     },
 
     /* Long feature: Relative Rotation */
-    relativeRot: function(sketch)
-    {
+    relativeRot: function (sketch) {
         return (this.rotChange(sketch) / this.strokeLen(sketch));
     },
 
     /* Long feature: Openness */
-    openness: function(sketch)
-    {
+    openness: function (sketch) {
         var Rf5 = this.distanceBetweenStartAndEnd(sketch);
         var Rf3 = this.bbDiagLen(sketch);
         var res = Rf5 / Rf3;
@@ -314,14 +448,11 @@ var Features = {
     },
 
     /* Long feature: Curviness */
-    curviness: function(sketch)
-    {
+    curviness: function (sketch) {
         var curveSum = 0;
 
-        for (var i = 0; i < sketch.strokes.length; i++)
-        {
-            for (var j = 1; j < sketch.strokes[i].points.length - 2; j++)
-            {
+        for (var i = 0; i < sketch.strokes.length; i++) {
+            for (var j = 1; j < sketch.strokes[i].points.length - 2; j++) {
                 var subSum = Math.abs(this.rotChangeHelper(sketch, i, j));
                 curveSum += (isNaN(subSum) || subSum >= (19 * Math.PI / 180)) ? 0 : subSum;
             }
@@ -345,8 +476,7 @@ var Features = {
     // },
 
     // DCR (direction change ratio)
-    DCR: function(sketch) 
-    {
+    DCR: function (sketch) {
         var maxAngleChange = Number.MIN_VALUE;
         var averageAngleChange;
         var angleSum = 0;
@@ -356,15 +486,12 @@ var Features = {
 
         var previous_angle = this.rotChangeHelper(sketch, 0, 1);
 
-        for (var i = 0; i < sketch.strokes.length; i++)
-        {
-            for(var j = 1; j < sketch.strokes[i].points.length - 1; j++)
-            {
+        for (var i = 0; i < sketch.strokes.length; i++) {
+            for (var j = 1; j < sketch.strokes[i].points.length - 1; j++) {
                 angle = this.rotChangeHelper(sketch, i, j);
                 angleSum += Math.abs(previous_angle - angle);
 
-                if(Math.abs(previous_angle - angle) > maxAngleChange)
-                {
+                if (Math.abs(previous_angle - angle) > maxAngleChange) {
                     maxAngleChange = angle;
                 }
 
@@ -374,16 +501,15 @@ var Features = {
             }
         }
 
-        averageAngleChange = count > 0 ? (angleSum/count) : 0;
+        averageAngleChange = count > 0 ? (angleSum / count) : 0;
 
-        if(averageAngleChange == 0) 
+        if (averageAngleChange == 0)
             return Number.MAX_VALUE;
         else
-            return (maxAngleChange/averageAngleChange);
+            return (maxAngleChange / averageAngleChange);
     },
 
-    strokebtwExtremes : function(sketch, maxAngleStroke, maxAngleStrokePoint, minAngleStroke, minAngleStrokePoint)
-    {
+    strokebtwExtremes: function (sketch, maxAngleStroke, maxAngleStrokePoint, minAngleStroke, minAngleStrokePoint) {
 
         var strokebtwExtremes = 0;
 
@@ -393,24 +519,21 @@ var Features = {
         var endstroke = maxAngleStroke > minAngleStroke ? maxAngleStroke : minAngleStroke;
         var endpoint = maxAngleStroke > minAngleStroke ? maxAngleStrokePoint : minAngleStrokePoint;
 
-        for (var i = startstroke; i <= endstroke; i++)
-        {
-            if(sketch[i] == null) continue;
+        for (var i = startstroke; i <= endstroke; i++) {
+            if (sketch[i] == null) continue;
 
-            for (var j = startpoint; ; j++)
-            {
-                if (i == endstroke)
-                    { if (j > endpoint) break; }
+            for (var j = startpoint; ; j++) {
+                if (i == endstroke) { if (j > endpoint) break; }
                 else if (j > sketch[i].length - 1)
                     break;
 
                 point_j = sketch[i][j];
-                point_j_next = sketch[i][j+1];
+                point_j_next = sketch[i][j + 1];
 
-                if(point_j == null || point_j_next == null)
+                if (point_j == null || point_j_next == null)
                     continue;
 
-                strokebtwExtremes += Math.sqrt(Math.pow((point_j_next.x - point_j.x),2) + Math.pow(point_j_next.y - point_j.y,2));              
+                strokebtwExtremes += Math.sqrt(Math.pow((point_j_next.x - point_j.x), 2) + Math.pow(point_j_next.y - point_j.y, 2));
             }
 
         }
@@ -418,8 +541,7 @@ var Features = {
     },
 
     //NDDE
-    NDDE: function(sketch)
-    {
+    NDDE: function (sketch) {
         var maxAngle = Number.MIN_VALUE;
         var minAngle = Number.MAX_VALUE;
 
@@ -430,30 +552,25 @@ var Features = {
         var strokeLenbtwExtremes;
         var strokebtwExtremes;
 
-        for (var i = 0; i < sketch.strokes.length; i++)
-        {
-            for(var j = 1; j < sketch.strokes[i].points.length - 1; j++)
-            {
+        for (var i = 0; i < sketch.strokes.length; i++) {
+            for (var j = 1; j < sketch.strokes[i].points.length - 1; j++) {
                 angle = this.rotChangeHelper(sketch, i, j);
 
-                if(angle > maxAngle)
-                {
+                if (angle > maxAngle) {
                     maxAngle = angle;
                     strokeWithMaxAngle = i;
                     pointWithMaxAngle = j;
                 }
-    
-                if(angle < minAngle)
-                {
+
+                if (angle < minAngle) {
                     minAngle = angle;
                     strokeWithMinAngle = i;
-                    pointWithMinAngle = j;  
+                    pointWithMinAngle = j;
                 }
             }
         }
 
-        if ((strokeWithMinAngle == strokeWithMaxAngle) && (pointWithMinAngle == pointWithMaxAngle))
-        {
+        if ((strokeWithMinAngle == strokeWithMaxAngle) && (pointWithMinAngle == pointWithMaxAngle)) {
             return 0;
         }
         else
@@ -466,6 +583,9 @@ var Features = {
         if (strokeLen == 0)
             return Number.MAX_VALUE;
 
-        return (strokeLenbtwExtremes/strokeLen);
+        return (strokeLenbtwExtremes / strokeLen);
     }
+
+
+
 }
