@@ -71,17 +71,22 @@ var Features = {
     },
     removeDuplicates: function (lines) {
         for (var i = 0; i < lines.length; i++) {
-            if (this.distance(lines[i].start, lines[i].end) < closenessThreshold) {
-                lines.splice(i, 1);
-                i--;
-            }
-            if (i < 0)
-                continue;
+            // if (this.distance(lines[i].start, lines[i].end) < closenessThreshold) {
+            //     lines.splice(i, 1);
+            //     i--;
+            // }
+            // if (i < 0)
+            //     continue;
             for (var j = i + 1; j < lines.length; j++) {
-                if ((this.distance(lines[i].start, lines[j].start) == 0) && (this.distance(lines[i].end, lines[j].end) == 0)) {
+                if ((this.distance(lines[i].start, lines[j].start) <= closenessThreshold) && (this.distance(lines[i].end, lines[j].end) <= closenessThreshold)) {
                     lines.splice(j, 1);
                     j--;
                 }
+                else if ((this.distance(lines[i].start, lines[j].end) <= closenessThreshold) && (this.distance(lines[i].end, lines[j].start) <= closenessThreshold)) {
+                    lines.splice(j, 1);
+                    j--;
+                }
+
             }
         }
         return lines;
@@ -203,7 +208,7 @@ var Features = {
     displayCornerFindingIStraw: function (sketch) {
         // get the resampled sketch and its corner indices
         var resampledSketch = SketchRecTools.resampleByDistance(sketch);
-        closenessThreshold = 3 * sampleSpace;//defined in sketch rec tools
+        closenessThreshold = 2 * sampleSpace;//defined in sketch rec tools
         var sketchCornerIndices = IStraw.run(resampledSketch);
         var d;
         // gather the corners from their indices
