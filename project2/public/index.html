@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <title>My Title</title>
+	<!-- An AMD-loader like RequireJS is necessary for srlib's asynchronous modules -->
+	<script src="require.js"></script>
+	<!-- Load srlib following RequireJS -->
+	<script src="srlib.js"></script>
+	<!-- JQuery provides a very nice set of tools when dealing with AJAX requests -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+	<script src="sketchio.js"></script>
+	<script src="draw.js"></script>
+	<script src="features.js"></script>
+	<script src="sketchRecTools.js"></script>
+	<script src="istraw.js"></script>
+	<script src="jsregression.js"></script>
+</head>
+<body>
+   <p>Hello</p> 
+	<script type="text/javascript">
+
+		var TP = 0;
+		var TN = 0;
+		var FP = 0;
+		var FN = 0;
+
+		function findParentStrokes(sketch, shapeId) 
+		{
+			var shape = sketch.shapes[shapeId];
+
+			for (var i = 0; i < shape.subElements.length; i++) 
+			{
+				var subElemId = shape.subElements[i];
+				if (sketch.shapes[subElemId] != undefined) 
+				{ // Found subElem in shapes
+					var subElem = sketch.shapes[subElemId];
+					if (subElem.interpretation === 'node') { // Ignore nodes
+						continue;
+					} else if (subElem.interpretation === 'line') { // Find stroke id
+						var strokeSubElemId = subElem.subElements[0];
+						if (sketch.substrokes[strokeSubElemId] != undefined) { // Found line subElement id in substrokes. Get substroke's parent Id
+							sketch.trussStrokeIds.add(sketch.substrokes[strokeSubElemId].parent);
+						} else if (sketch.strokes[strokeSubElemId] != undefined) { // Subelement was a parent stroke, so use that id.
+							sketch.trussStrokeIds.add(strokeSubElemId);
+						}
+					} else { // Subelem is some other shape
+						findParentStrokes(sketch, subElemId);
+					}
+				} 
+				else if (sketch.strokes[subElemId] != undefined) 
+				{ // Check in strokes (some older versions of sketches don't store lines as a shape)
+					sketch.trussStrokeIds.add(subElemId);
+				} 
+				else if (sketch.substrokes[subElemId] != undefined) { // And check in substrokes for same reason as strokes
+					sketch.trussStrokeIds.add(sketch.substrokes[subElemId].parent);
+				}
+			}
+		};
+		
+		function checkSketchForTruss(sketch) 
+		{
+
+			//var canvas = document.getElementById("sketchCanvas");
+			var i=0;
+			// for(var j=0;j<sketch.strokes.length;j++){
+			// 	if (sketch != null && sketch.strokes[j] != null) {
+			// 	DrawSketch.drawPoints( sketch.strokes[j].points,"#ff2626");
+			//  }
+			// }
+
+			sketch = SketchIo.simplify(sketch);
+			//var output = { 'containsTruss': false, 'trussStrokeIds': [] };
+			
+			var calc_strokeIds = (Features.evaluateFeatures(sketch));
+			//{ 'containsTruss': false, 'trussStrokeIds': [] };
+			//var strokeIds = sketch.strokes.strokeIds;
+
+
+			// strokeIds.add(id);
+			// output.trussStrokeIds = [...strokeIds]; // This is valid syntax and turns the set into an array.
+
+			// output.trussStrokeIds = strokeIds;
+			///console.log(calc_strokeIds);
+			return calc_strokeIds;
+		};
+
+		// All or nothing accuracy for strokeIds, so just track if they match entirely or not.
+		var strokeIdMatches = 0;
+		function compareAndLogStats(sketch, ans) 
+		{
+			//sketch.shapes = arrayToObj(sketch.shapes);
+			//sketch.substrokes = arrayToObj(sketch.substrokes);
+			sketch.trussStrokeIds = new Set();
+
+			var row = [];
+			row.push(sketch['_id']);
+			row.push(sketch.id);
+			row.push(ans.containsTruss);
+			row.push(sketch.containsTruss);
+			row.push('"' + JSON.stringify([...new Set(ans.trussStrokeIds)]).replace(/"/g, '') + '"'); // This will make the field surrounded by double quotes but have no double quotes so it all appears in 1 cell in the CSV.
+			row.push('"' + JSON.stringify([...sketch.trussStrokeIds]).replace(/"/g, '') + '"');
+			row.push(sketch.containsTruss === ans.containsTruss);
+
+			// Find if the strokeIds all match.
+			var idsMatch = true; // Until we prove otherwise
+			var tempAns = new Set(ans.trussStrokeIds);
+			var tempSketch = new Set(sketch.trussStrokeIds);
+			if (tempAns.size !== tempSketch.size) { // Different number of strokeIds, so no match.
+				idsMatch = false;
+			} else {
+				for (var elem of tempAns) { // Stupid set iteration not using for in like a normal object...
+					tempSketch.delete(elem);
+				}
+				idsMatch = tempSketch.size === 0; // If all ids match, then all will be removed and tempSketch.size will be 0.
+			}
+			row.push(idsMatch);
+
+			// Update metrics
+			if (sketch.containsTruss && ans.containsTruss) {
+				TP++;
+			} else if (!sketch.containsTruss && ans.containsTruss) { // Doesn't contain a truss, but answer says it does
+				FP++;
+			} else if (sketch.containsTruss && !ans.containsTruss) {
+				FN++;
+			} else {
+				TN++;
+			}
+			if (idsMatch) { strokeIdMatches++; }
+		}
+
+		function processSketch(sketches) 
+		{
+			// Read line by line
+
+			var l = sketches;
+
+			features_arr = [[]];
+			feature_count = 0;
+
+			limit = l.length; // In case there are fewer lines than the user selected limit.
+			var output;
+			var calc_strokes = [];
+			var results = [];
+
+			for (var line = 0; line < limit; line++) 
+			{
+				if (l[line] == '') { continue; }
+				
+				// var sketch = l[line];
+				//delete sketch.shapes;
+				//delete sketch.substrokes;
+
+				//console.log('Checking sketch ' + (line + 1) + ' of ' + limit);
+
+				//get stroke ids n calculate features.
+				calc_strokes.push(checkSketchForTruss(l[line]));
+			}
+
+			var classifier = new jsregression.MultiClassLogistic({ alpha: 0.001, iterations: 1000, lambda: 0.0});
+
+			//var trainingData = features_arr;
+			var testingData = features_arr;
+			
+			//var model = classifier.fit(trainingData);
+			classifier.initializeModel();
+			var truepos = 0;
+			var incorrPred = 0;
+			var accuracy;
+			var correctStrokes = 0;
+			var incorrectMatchStrokes = 0;
+
+			//console.log(model);
+			//console.log(features_arr);
+
+			for(var i=0; i < testingData.length; i++)
+			{
+
+				var predicted = classifier.transform(testingData[i]);
+				//console.log("actual: " + actual[i] + " predicted: " + predicted);
+
+				var containsTruss = predicted == "truss" ? true : false;
+				//compareAndLogStats(l[i], output); // Reparse as the sketch param in case they change anything.
+
+				// console.log(output[i].containsTruss);
+				if((predicted == l[i].interpretation) && (containsTruss == true))
+					truepos++;
+
+				if(predicted != l[i].interpretation)
+					incorrPred++;
+
+				var actual_strokeIds = getStrokeIds(l[i]);
+				var calc_strokeIds = calc_strokes[i];
+
+				//console.log(calc_strokeIds);
+
+				if (actual_strokeIds.length > 0)
+				{
+					var temp = 0;
+					var sum = 0;
+					console.log(actual_strokeIds);
+					console.log(calc_strokeIds);
+					if(calc_strokeIds.length > 0)
+					{
+						for (var j=0; j < actual_strokeIds.length; j++)
+						{
+							for(var k = 0; k<actual_strokeIds[j].length; k++)
+							{
+								if(calc_strokeIds.indexOf(actual_strokeIds[j][k]) != -1)
+									temp++;
+
+								sum++; 
+								//console.log(temp);
+							}
+						}
+					}
+
+					correctStrokes += calc_strokeIds.length > 0 ? temp/sum : 0;
+					incorrectMatchStrokes += calc_strokeIds.length > 0 ? 1 - (temp/sum): 1;
+				}
+
+				results.push([containsTruss, calc_strokes[i]]);
+			}
+
+			var fmeasure = (truepos*2.0)/(truepos*2.0 + incorrPred);
+			//var accuracy = correct/testingData.length;
+			console.log(fmeasure);
+			//console.log(l[0]);
+			
+			var fmeas_strokes = (correctStrokes*2.0)/(correctStrokes*2.0 + incorrectMatchStrokes);
+			console.log(fmeas_strokes);
+
+			//console.log(results);
+			return results;
+		}
+
+		function getStrokeIds(sketch)
+		{
+			var actual_strokeIds = [];
+
+			if(sketch.shapes != null)
+			{
+				for (var i =0; i < sketch.shapes.length; i++) 
+				//for each (shape in sketch.shapes)
+				{
+					//console.log(sketch.shapes[i]);
+					actual_strokeIds.push(sketch.shapes[i].subElements);
+				}
+			}
+			
+			//console.log(actual_strokeIds);
+			return actual_strokeIds;
+		}
+
+	   	function readFile(fileName) 
+	   	{
+		   var results;
+		   var xhttp = new XMLHttpRequest();
+		   xhttp.onreadystatechange = function() 
+		   {
+		      if (this.readyState === 4 && this.status === 200) 
+		      {
+		         sketches = JSON.parse(this.response);
+		         //console.log(sketches);
+		  		 results = processSketch(sketches);
+			  }
+		   };
+
+		   
+		   xhttp.open("GET", fileName, false);
+		   xhttp.send();
+		   //downloadResults(results);
+		   //return contents;
+
+		   //results = [];
+		   downloadResults(results);
+		};
+
+		function downloadResults(results) 
+		{
+		   var output = JSON.stringify(results);
+		   var blob = new Blob([output], {type: "application/json"});
+		   var url  = URL.createObjectURL(blob);  
+		   var a = document.createElement('a');
+		   a.href = url;
+		   a.download = "results.json";
+		   document.body.appendChild(a);
+		   a.click();
+		};
+
+		readFile("data.json");
+	</script>
+</body>
+</html>

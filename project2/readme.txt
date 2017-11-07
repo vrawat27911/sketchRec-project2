@@ -1,0 +1,1 @@
+Read Me – Directory structure describing main files is as follows:●	project2 (root)/○	public/■	index.html■	jsregression.js■	features.js■	sketchio.js■	sketchRecTools.js■	require.js■	srllib.js■	data.json○	server.js○	readme.txt
